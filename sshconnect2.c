@@ -1689,14 +1689,13 @@ static void
 pubkey_prepare(struct ssh *ssh, Authctxt *authctxt)
 {
 	struct identity *id, *id2, *tmp;
-	struct idlist agent, files, *preferred;
+	struct idlist files, *preferred;
 	struct sshkey *key;
 	int agent_fd = -1, i, r, found;
 	size_t j;
 	struct ssh_identitylist *idlist;
 	char *ident;
 
-	TAILQ_INIT(&agent);	/* keys from the agent */
 	TAILQ_INIT(&files);	/* keys from the config file */
 	preferred = &authctxt->keys;
 	TAILQ_INIT(preferred);	/* preferred order of keys */
@@ -1749,35 +1748,36 @@ pubkey_prepare(struct ssh *ssh, Authctxt *authctxt)
 	}
 	/* list of keys supported by the agent */
 	if ((r = get_agent_identities(ssh, &agent_fd, &idlist)) == 0) {
-		for (j = 0; j < idlist->nkeys; j++) {
-			found = 0;
-			TAILQ_FOREACH(id, &files, next) {
-				/*
-				 * agent keys from the config file are
-				 * preferred
-				 */
-				if (sshkey_equal(idlist->keys[j], id->key)) {
+		/* prefer agent keys in the order they appear in the config file */
+		TAILQ_FOREACH_SAFE(id, &files, next, id2) {
+			for (j = 0; j < idlist->nkeys; j++) {
+				if (idlist->keys[j] && sshkey_equal(idlist->keys[j], id->key)) {
 					TAILQ_REMOVE(&files, id, next);
 					TAILQ_INSERT_TAIL(preferred, id, next);
 					id->agent_fd = agent_fd;
-					found = 1;
+					/* mark key as used */
+					sshkey_free(idlist->keys[j]);
+					idlist->keys[j] = NULL;
 					break;
 				}
 			}
-			if (!found && !options.identities_only) {
-				id = xcalloc(1, sizeof(*id));
-				/* XXX "steals" key/comment from idlist */
-				id->key = idlist->keys[j];
-				id->filename = idlist->comments[j];
-				idlist->keys[j] = NULL;
-				idlist->comments[j] = NULL;
-				id->agent_fd = agent_fd;
-				TAILQ_INSERT_TAIL(&agent, id, next);
+		}
+		/* append remaining agent keys */
+		if (!options.identities_only) {
+			for (j = 0; j < idlist->nkeys; j++) {
+				if (idlist->keys[j]) {
+					id = xcalloc(1, sizeof(*id));
+					/* XXX "steals" key/comment from idlist */
+					id->key = idlist->keys[j];
+					id->filename = idlist->comments[j];
+					idlist->keys[j] = NULL;
+					idlist->comments[j] = NULL;
+					id->agent_fd = agent_fd;
+					TAILQ_INSERT_TAIL(preferred, id, next);
+				}
 			}
 		}
 		ssh_free_identitylist(idlist);
-		/* append remaining agent keys */
-		TAILQ_CONCAT(preferred, &agent, next);
 		authctxt->agent_fd = agent_fd;
 	}
 	/* Prefer PKCS11 keys that are explicitly listed */
