@@ -1890,7 +1890,7 @@ sftp_server_usage(void)
 	extern char *__progname;
 
 	fprintf(stderr,
-	    "usage: %s [-ehR] [-d start_directory] [-f log_facility] "
+	    "usage: %s [-ehR] [-C chroot_directory] [-d start_directory] [-f log_facility] "
 	    "[-l log_level]\n\t[-P denied_requests] "
 	    "[-p allowed_requests] [-u umask]\n"
 	    "       %s -Q protocol_feature\n",
@@ -1904,7 +1904,7 @@ sftp_server_main(int argc, char **argv, struct passwd *user_pw)
 	int i, r, in, out, ch, skipargs = 0, log_stderr = 0;
 	ssize_t len, olen;
 	SyslogFacility log_facility = SYSLOG_FACILITY_AUTH;
-	char *cp, *homedir = NULL, uidstr[32], buf[4*4096];
+	char *cp, *homedir = NULL, *chrootdir = NULL, uidstr[32], buf[4*4096];
 	long mask;
 
 	extern char *optarg;
@@ -1916,7 +1916,7 @@ sftp_server_main(int argc, char **argv, struct passwd *user_pw)
 	pw = pwcopy(user_pw);
 
 	while (!skipargs && (ch = getopt(argc, argv,
-	    "d:f:l:P:p:Q:u:cehR")) != -1) {
+	    "d:f:l:P:p:Q:u:C:cehR")) != -1) {
 		switch (ch) {
 		case 'Q':
 			if (strcasecmp(optarg, "requests") != 0) {
@@ -1931,6 +1931,14 @@ sftp_server_main(int argc, char **argv, struct passwd *user_pw)
 			break;
 		case 'R':
 			readonly = 1;
+			break;
+		case 'C':
+			cp = tilde_expand_filename(optarg, user_pw->pw_uid);
+			snprintf(uidstr, sizeof(uidstr), "%llu",
+			    (unsigned long long)pw->pw_uid);
+			chrootdir = percent_expand(cp, "d", user_pw->pw_dir,
+			    "u", user_pw->pw_name, "U", uidstr, (char *)NULL);
+			free(cp);
 			break;
 		case 'c':
 			/*
@@ -2024,6 +2032,20 @@ sftp_server_main(int argc, char **argv, struct passwd *user_pw)
 	if ((oqueue = sshbuf_new()) == NULL)
 		fatal_f("sshbuf_new failed");
 
+	if (chrootdir != NULL) {
+		if (chdir(chrootdir) != 0) {
+			fatal("chdir to chroot \"%s\" failed: %s", chrootdir,
+			    strerror(errno));
+		}
+		if (chroot(chrootdir) != 0) {
+			fatal("chroot to \"%s\" failed: %s", chrootdir,
+			    strerror(errno));
+		}
+		if (chdir("/") != 0) {
+			fatal("chdir to \"/\" in \"%s\" chroot failed: %s", chrootdir,
+			    strerror(errno));
+		}
+	}
 	if (homedir != NULL) {
 		if (chdir(homedir) != 0) {
 			error("chdir to \"%s\" failed: %s", homedir,

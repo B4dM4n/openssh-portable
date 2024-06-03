@@ -32,6 +32,7 @@
 .Nm sftp-server
 .Bk -words
 .Op Fl ehR
+.Op Fl C Ar chroot_directory
 .Op Fl d Ar start_directory
 .Op Fl f Ar log_facility
 .Op Fl l Ar log_level
@@ -63,6 +64,14 @@ for more information.
 .Pp
 Valid options are:
 .Bl -tag -width Ds
+.It Fl C Ar chroot_directory
+Specifies a directory to
+.Xr chroot 2
+to at startup.
+The pathname may contain the following tokens that are expanded at runtime:
+%% is replaced by a literal '%',
+%d is replaced by the home directory of the user being authenticated,
+and %u is replaced by the username of that user.
 .It Fl d Ar start_directory
 Specifies an alternate starting directory for users.
 The pathname may contain the following tokens that are expanded at runtime:
