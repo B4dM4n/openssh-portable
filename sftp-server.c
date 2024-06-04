@@ -2026,7 +2026,7 @@ sftp_server_main(int argc, char **argv, struct passwd *user_pw)
 
 	if (homedir != NULL) {
 		if (chdir(homedir) != 0) {
-			error("chdir to \"%s\" failed: %s", homedir,
+			fatal("chdir to \"%s\" failed: %s", homedir,
 			    strerror(errno));
 		}
 	}
