@@ -106,10 +106,8 @@ getrrsetbyname(const char *hostname, unsigned int rdclass,
 	ldns_resolver_set_debug(ldns_res, true);
 #endif /* LDNS_DEBUG */
 
-	ldns_resolver_set_dnssec(ldns_res, true); /* Use DNSSEC */
-
 	/* make query */
-	pkt = ldns_resolver_query(ldns_res, domain, rdtype, rdclass, LDNS_RD);
+	pkt = ldns_resolver_query(ldns_res, domain, rdtype, rdclass, LDNS_RD|LDNS_AD);
 
 	/*** TODO: finer errcodes -- see original **/
 	if (!pkt || ldns_pkt_ancount(pkt) < 1) {
